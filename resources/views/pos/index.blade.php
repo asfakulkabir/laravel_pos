@@ -345,6 +345,39 @@
                 // VAT
                 vatPercent: 0,
 
+                init() {
+                    // The screen can be left open long enough for the session to
+                    // lapse. Keep the cart across the reload that recovery forces.
+                    PosSession.storageKey = 'pos:cart';
+                    PosSession.onExpired = () => window.sessionStorage.setItem(
+                        PosSession.storageKey,
+                        JSON.stringify({
+                            cart: this.cart,
+                            paymentMethod: this.paymentMethod,
+                            customerPaid: this.customerPaid,
+                            customerName: this.customerName,
+                            customerPhone: this.customerPhone,
+                            customerAddress: this.customerAddress,
+                            globalFlat: this.globalFlat,
+                            globalPercent: this.globalPercent,
+                            vatPercent: this.vatPercent
+                        })
+                    );
+                    PosSession.onRestored = (state) => {
+                        this.cart = state.cart || [];
+                        this.paymentMethod = state.paymentMethod || 'Cash';
+                        this.customerPaid = state.customerPaid || '';
+                        this.customerName = state.customerName || '';
+                        this.customerPhone = state.customerPhone || '';
+                        this.customerAddress = state.customerAddress || '';
+                        this.globalFlat = state.globalFlat || '';
+                        this.globalPercent = state.globalPercent || '';
+                        this.vatPercent = state.vatPercent || 0;
+                        alert('Your session had expired, so the page was reloaded.\nThe cart has been restored - please confirm the sale again.');
+                    };
+                    PosSession.restore();
+                },
+
                 async fetchCustomers() {
                     if (this.customerPhone.length < 3) {
                         this.suggestions = [];
@@ -534,15 +567,17 @@
                             change_amount: this.changeAmount
                         };
 
-                        const res = await fetch("{{ route('orders.store') }}", {
+                        const res = await PosSession.fetch("{{ route('orders.store') }}", {
                             method: 'POST',
                             headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                                'Accept': 'application/json'
+                                'Content-Type': 'application/json'
                             },
                             body: JSON.stringify(payload)
                         });
+
+                        // A stale session reloads the page to recover; don't
+                        // shout an error over the top of it.
+                        if (res.status === 419) return;
 
                         const result = await res.json();
                         if (res.ok && result.success) {
@@ -552,6 +587,7 @@
                             alert('Error: ' + (result.message || 'Unknown error'));
                         }
                     } catch (e) {
+                        if (PosSession._recovering) return;
                         console.error(e);
                         alert('Submission failed');
                     } finally {

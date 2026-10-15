@@ -314,15 +314,16 @@
                         }))
                     };
 
-                    const response = await fetch(`{{ route('stock.return.store') }}`, {
+                    const response = await PosSession.fetch(`{{ route('stock.return.store') }}`, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                            'Accept': 'application/json'
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify(payload)
                     });
+
+                    if (response.status === 419) return;
+
                     const data = await response.json();
 
                     if (!response.ok) {
@@ -335,6 +336,7 @@
                     this.entries = [];
                     this.confirmModalOpen = false;
                 } catch (error) {
+                    if (PosSession._recovering) return;
                     console.error(error);
                     this.alert = {type: 'error', message: 'Unexpected error while saving.'};
                 } finally {

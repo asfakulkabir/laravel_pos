@@ -76,6 +76,7 @@
                 }
             });
         </script>
+        @include('partials.session-guard')
         @stack('scripts')
     </body>
 </html>

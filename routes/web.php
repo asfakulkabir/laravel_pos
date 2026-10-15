@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PosController;
@@ -18,6 +19,13 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Terminal screens (POS, exchange, stock intake/return) sit open on the
+    // counter all day. A ping keeps their session alive and hands back the
+    // current CSRF token so a stale page never fails on CONFIRM.
+    Route::get('/session/keepalive', function (Request $request) {
+        return response()->json(['token' => csrf_token()]);
+    })->name('session.keepalive');
 
     // Attributes Routes
     Route::get('/attributes', [AttributeController::class, 'index'])->name('attributes.index');

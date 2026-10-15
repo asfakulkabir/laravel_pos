@@ -281,6 +281,34 @@
                 keepPriceSame: false,
                 matchingVariants: [],
 
+                init() {
+                    // Survive the reload that session recovery forces.
+                    PosSession.storageKey = 'pos:exchange';
+                    PosSession.onExpired = () => window.sessionStorage.setItem(
+                        PosSession.storageKey,
+                        JSON.stringify({
+                            customerPhone: this.customerPhone,
+                            returnQuery: this.returnQuery,
+                            newProductQuery: this.newProductQuery,
+                            oldPrice: this.oldPrice,
+                            newPriceOverride: this.newPriceOverride,
+                            exchangeReason: this.exchangeReason,
+                            customerPaid: this.customerPaid
+                        })
+                    );
+                    PosSession.onRestored = (state) => {
+                        this.customerPhone = state.customerPhone || '';
+                        this.returnQuery = state.returnQuery || '';
+                        this.newProductQuery = state.newProductQuery || '';
+                        this.oldPrice = state.oldPrice || 0;
+                        this.newPriceOverride = state.newPriceOverride || 0;
+                        this.exchangeReason = state.exchangeReason || 'Size mismatch';
+                        this.customerPaid = state.customerPaid || 0;
+                        alert('Your session had expired, so the page was reloaded.\nPlease re-select the products and submit again.');
+                    };
+                    PosSession.restore();
+                },
+
                 searchCatalog() {
                     const q = this.newProductQuery.toLowerCase();
                     // Allow manual entry logic
@@ -502,15 +530,15 @@
                             change_amount: Math.max(0, this.customerPaid - this.balanceDiff)
                         };
 
-                        const res = await fetch("{{ route('orders.exchange.process') }}", {
+                        const res = await PosSession.fetch("{{ route('orders.exchange.process') }}", {
                             method: 'POST',
                             headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                'Accept': 'application/json'
+                                'Content-Type': 'application/json'
                             },
                             body: JSON.stringify(payload)
                         });
+
+                        if (res.status === 419) return;
 
                         const data = await res.json();
                         if (data.success) {
@@ -523,6 +551,7 @@
                             alert(data.message || 'Processing failed');
                         }
                     } catch (e) {
+                        if (PosSession._recovering) return;
                         console.error(e);
                         alert('Error processing exchange');
                     } finally {

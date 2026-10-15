@@ -32,6 +32,8 @@
         </div>
     </div>
 
+    @include('partials.session-guard')
+
     <!-- Main Content -->
     <main>
         {{ $slot }}
